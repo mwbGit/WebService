@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE configuration PUBLIC "-//mybatis.org//DTD Config 3.0//EN"
+	"http://mybatis.org/dtd/mybatis-3-config.dtd">
+
+<configuration>
+	<settings>
+		<setting name="cacheEnabled" value="true" />
+		<setting name="lazyLoadingEnabled" value="true" />
+	</settings>
+
+	<typeAliases>
+		<!-- custom type handler -->
+		<typeAlias alias="EnumIdTypeHandler" type="com.mwb.web.framework.mybatis.typehandler.EnumIdTypeHandler"/>
+		<typeAlias alias="ReverseStringTypeHandler" type="com.mwb.web.framework.mybatis.typehandler.ReverseStringTypeHandler"/>
+
+		<typeAlias alias="BlobTypeHandler" type="org.apache.ibatis.type.BlobTypeHandler"/>
+
+		<typeAlias alias="TimeRange" type="com.mwb.web.framework.model.filter.TimeRange"/>
+		<typeAlias alias="Bool" type="com.mwb.web.framework.model.Bool"/>
+
+		<typeAlias alias="User" type="com.mwb.data.dao.module.User"/>
+		<typeAlias alias="Address" type="com.mwb.data.dao.module.Address"/>
+		<typeAlias alias="Grade" type="com.mwb.data.dao.module.Grade"/>
+		<typeAlias alias="UserStatus" type="com.mwb.data.dao.module.UserStatus"/>
+
+	</typeAliases>
+
+
+</configuration>

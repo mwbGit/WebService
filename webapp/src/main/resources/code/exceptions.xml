@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<exception class="java.lang.Exception" code="100001">
+    
+    <exception code="100100" class="com.mwb.web.framework.service.aop.normalize.RequestNormalizeException" />
+	
+	<!-- 请求参数格式验证错误 -->
+	<exception code="100101" class="com.mwb.web.framework.service.aop.validate.field.exception.ValidationException"/>
+    <exception code="100106" class="com.mwb.web.framework.service.aop.validate.field.exception.NotNullException" />
+    <exception code="100107" class="com.mwb.web.framework.service.aop.validate.field.exception.NotEmptyException" />
+    <exception code="100108" class="com.mwb.web.framework.service.aop.validate.field.exception.PagingRequestFormatException" />
+
+    <exception code="200001" class="com.com.mwb.business.common.exception.EntityNotExistException" />
+    <exception code="200002"  class="com.mwb.business.common.exception.RemoteServerException" />
+
+
+
+</exception>

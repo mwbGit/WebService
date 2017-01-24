@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="UTF-8" ?>   
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" 
+	"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.mwb.data.dao.mapper.UserMapper">
+
+	<resultMap 
+		id="userResult" 
+		type="User" >
+		<id property="id" column="user_id" />
+		<result property="name" column="user_name" />
+		<result property="mobile" column="user_mobile" typeHandler="ReverseStringTypeHandler" />
+		<result property="marital" column="user_marital" jdbcType="CHAR" javaType="Bool"/>
+		<result property="createTime" column="user_create_time"/>
+		<result property="status" column="user_status_id" typeHandler="EnumIdTypeHandler" />
+		<association property="address" javaType="Address" resultMap="addressResult" />
+		<collection property="grades" ofType="Grade" resultMap="gradeResult"/>
+	</resultMap>
+
+	<resultMap
+		id="addressResult"
+		type="Address" >
+		<id property="id" column="address_id" />
+		<result property="name" column="address_name" />
+	</resultMap>
+
+	<resultMap
+		id="gradeResult"
+		type="Grade" >
+		<id property="id" column="grade_id" />
+		<result property="name" column="grade_name" />
+		<result property="score" column="grade_score" />
+	</resultMap>
+
+	<!--<sql id="pagingLimit">-->
+		<!--<include refid="com.mwb.data.dao.mapper.CommonMapper.pagingLimit"/>-->
+	<!--</sql>-->
+	<sql id="pagingLimit">
+		<if test="filter.paged == true">
+			LIMIT
+			#{filter.pagingData.startRecordNumber, javaType=int, jdbcType=INTEGER},
+			#{filter.pagingData.pageSize, javaType=int, jdbcType=INTEGER}
+		</if>
+		<if test="filter.paged == false">
+			LIMIT #{filter.limit, javaType=int, jdbcType=INTEGER}
+		</if>
+	</sql>
+	<sql id="userColumns">
+		u.id AS user_id,
+		u.name AS user_name,
+		u.mobile AS user_mobile,
+		u.marital AS user_marital,
+		u.create_time AS user_create_time,
+		u.status_id AS user_status_id,
+		u.address_id AS user_address_id
+	</sql>
+
+	<sql id="addressResult">
+		a.id AS address_id,
+		a.name AS address_name
+	</sql>
+
+	<sql id="gradeResult">
+		g.id AS grade_id,
+		g.name AS grade_name,
+		g.score AS grade_score,
+		g.user_id AS grade_user_id
+	</sql>
+
+	<sql id="userFilter">
+		<if test="filter.name != null">
+			AND u.name like #{filter.name, javaType=string, jdbcType=CHAR}
+		</if>
+		<if test="filter.mobile != null">
+			AND u.mobile like #{filter.mobile, javaType=string, jdbcType=CHAR, typeHandler=ReverseStringTypeHandler}
+		</if>
+		<if test="filter.marital != null">
+			AND u.marital = #{filter.marital.code, javaType=string, jdbcType=CHAR}
+		</if>
+		<if test="filter.status != null">
+			AND u.status_id = #{filter.status.id, javaType=int, jdbcType=INTEGER}
+		</if>
+		<if test="filter.timeRange != null">
+			<if test="filter.timeRange.from != null">
+				AND u.create_time <![CDATA[ >= ]]> #{filter.timeRange.from, javaType=date, jdbcType=TIMESTAMP}
+			</if>
+			<if test="filter.timeRange.to != null">
+				AND u.create_time <![CDATA[ < ]]> #{filter.timeRange.to, javaType=date, jdbcType=TIMESTAMP}
+			</if>
+		</if>
+		<if test="filter.containsScores != null and filter.containsScores.size > 0">
+			AND g.score IN
+			<foreach item="scores" index="index" collection="filter.containsScores"
+					 open="(" separator="," close=")">
+				#{scores, javaType=int, jdbcType=INTEGER}
+			</foreach>
+		</if>
+	</sql>
+
+	<select 
+		id="selectUser"
+		parameterType="int"
+		resultMap="userResult">
+		SELECT
+			<include refid="userColumns"/>,
+			<include refid="addressResult"/>,
+			<include refid="gradeResult"/>
+		FROM
+			t_user u
+			INNER JOIN t_address a ON a.id = u.address_id
+			LEFT JOIN t_grade g ON g.user_id = u.id
+		WHERE
+			u.id = #{id, javaType=int, jdbcType=INTEGER}
+	</select>
+
+	<select
+		id="selectUserByFilter"
+		parameterType="map"
+		resultMap="userResult">
+		SELECT
+			<include refid="userColumns"/>,
+			<include refid="addressResult"/>,
+			<include refid="gradeResult"/>
+		FROM
+			t_user u
+			INNER JOIN t_address a ON a.id = u.address_id
+			LEFT JOIN t_grade g ON g.user_id = u.id
+		<where>
+			<include refid="userFilter"/>
+		</where>
+			ORDER BY
+			u.create_time DESC
+			<include refid="pagingLimit"/>
+	</select>
+
+	<select
+		id="countUserByFilter"
+		parameterType="map"
+		resultType="int">
+		SELECT
+			COUNT(DISTINCT(u.id))
+		FROM
+			t_user u
+			INNER JOIN t_address a ON a.id = u.address_id
+			LEFT JOIN t_grade g ON g.user_id = u.id
+		<where>
+			<include refid="userFilter"/>
+		</where>
+	</select>
+
+	<insert
+		id="insertUser"
+		parameterType="User"
+		useGeneratedKeys="true"
+		keyProperty="id">
+		INSERT INTO t_user (
+			id,
+			name,
+			mobile,
+			marital,
+			create_time,
+			status_id,
+			address_id
+			) VALUES (
+			#{id, javaType=int, jdbcType=INTEGER},
+			#{name, javaType=string, jdbcType=CHAR},
+			#{mobile, javaType=string, jdbcType=CHAR, typeHandler=ReverseStringTypeHandler},
+			#{marital.code, javaType=string, jdbcType=CHAR},
+			#{createTime, javaType=date, jdbcType=TIMESTAMP},
+			#{status.id, javaType=int, jdbcType=INTEGER},
+			#{address.id, javaType=int, jdbcType=INTEGER}
+			)
+	</insert>
+
+	<update
+		id="updateUser"
+		parameterType="User" >
+		UPDATE
+			t_user
+		<set>
+			<if test="name != null">
+				name = #{name, javaType=string, jdbcType=CHAR},
+			</if>
+			<if test="mobile != null">
+				mobile = #{mobile, javaType=string, jdbcType=CHAR, typeHandler=ReverseStringTypeHandler},
+			</if>
+			<if test="marital != null">
+				marital = #{marital.code, javaType=string, jdbcType=CHAR},
+			</if>
+			<if test="createTime != null">
+				create_time = #{createTime, javaType=date, jdbcType=TIMESTAMP},
+			</if>
+			<if test="status != null">
+				status_id = #{status.id, javaType=int, jdbcType=INTEGER},
+			</if>
+			<if test="address != null">
+				address_id = #{address.id, javaType=int, jdbcType=INTEGER}
+			</if>
+		</set>
+		WHERE
+			id = #{id, javaType=int, jdbcType=INTEGER}
+	</update>
+</mapper>   
