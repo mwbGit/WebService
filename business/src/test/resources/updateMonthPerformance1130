@@ -1,0 +1,256 @@
+####################################
+-- 2016-11-29 上线新功能，固定提成订单（使用商家提成订单），可以延后发提成工资
+-- 2016-11-30 发现bug， 蜂鸟订单oas事件处理报空指针，导致performance表未计算
+-- 修复performance脚本
+
+-- 先处理阶梯提成订单数据，找出阶梯提成单量不准确的员工
+USE test;
+DROP TABLE IF EXISTS le_delivered_ladder_order_count_1130;
+CREATE TABLE le_delivered_ladder_order_count_1130
+SELECT 
+			dsmp.delivered_ladder_order_number AS dsmp_delivered_ladder_order_number, 			
+			temp.delivered_ladder_order_number AS temp_delivered_ladder_order_number, 
+			dsmp.delivery_staff_code AS dsmp_delivery_staff_code ,
+			temp.cityName,
+			temp.baName,
+			temp.full_name,
+			temp.eid			
+FROM i360r_oas.t_delivery_staff_monthly_performance dsmp
+INNER JOIN (
+		SELECT e.id AS eid, 
+					doh.delivered_by_code AS delivered_by_code, 
+					count(1) AS delivered_ladder_order_number, 
+					city.`name` AS cityName, 
+					ba.`name` AS baName, 
+					e.full_name 
+		FROM i360r_hop.t_deliveronly_order_history doh
+		INNER JOIN i360r_hop.t_deliveronly_order_store dos ON doh.id = dos.order_id
+		INNER JOIN i360r_cds.t_delivery_staff ds ON ds.id = doh.delivered_by_code
+		INNER JOIN i360r_cds.t_business_area ba ON ds.business_area_id = ba.id
+		INNER JOIN i360r_cds.t_city city ON ba.city_id = city.id
+		INNER JOIN i360r_cds.t_employee_position ep ON ep.id = ds.employee_position_id
+		INNER JOIN i360r_cds.t_employee e ON ep.employee_id = e.id
+		WHERE doh.end_time >= '2016-11-01' 
+					AND doh.status_id = 6
+		AND dos.is_use_store_royalties_config = "N"
+		GROUP BY doh.delivered_by_code
+) AS temp ON dsmp.delivery_staff_code = temp.delivered_by_code
+WHERE dsmp.statistic_date = '2016-11-01' 
+AND temp.delivered_ladder_order_number != dsmp.delivered_ladder_order_number
+
+-- 涉及的城市、商圈
+USE test;
+DROP TABLE IF EXISTS le_delivered_ladder_city_1130;
+CREATE TABLE le_delivered_ladder_city_1130
+SELECT cityName, baName 
+FROM le_delivered_ladder_order_count_1130
+GROUP BY cityName, baName
+
+-- 全职提成，上海漕河泾与其他不一样，可以分为两类处理
+上海	漕河泾	1	300	2.00
+上海	漕河泾	301	99999999	3.00
+北京	东直门	1	500	2.00
+北京	东直门	501	99999999	3.00
+北京	五道口	1	500	2.00
+北京	五道口	501	99999999	3.00
+北京	北苑	1	500	2.00
+北京	北苑	501	99999999	3.00
+北京	崇文门	1	500	2.00
+北京	崇文门	501	99999999	3.00
+北京	方庄	1	500	2.00
+北京	方庄	501	99999999	3.00
+北京	昌平	1	500	2.00
+北京	昌平	501	99999999	3.00
+北京	月坛	1	500	2.00
+北京	月坛	501	99999999	3.00
+北京	西三旗	1	500	2.00
+北京	西三旗	501	99999999	3.00
+北京	西直门	1	500	2.00
+北京	西直门	501	99999999	3.00
+北京	金融街	1	500	2.00
+北京	金融街	501	99999999	3.00
+北京	魏公村	1	500	2.00
+北京	魏公村	501	99999999	3.00
+天津	华苑	1	500	2.00
+天津	华苑	501	99999999	3.00
+宁波	海曙南	1	500	2.00
+宁波	海曙南	501	99999999	3.00
+杭州	九堡	1	500	2.00
+杭州	九堡	501	99999999	3.00
+武汉	洪山广场	1	500	2.00
+武汉	洪山广场	501	99999999	3.00
+武汉	街道口	1	500	2.00
+武汉	街道口	501	99999999	3.00
+武汉	马湖社区	1	500	2.00
+武汉	马湖社区	501	99999999	3.00
+温州	瓯北	1	500	2.00
+温州	瓯北	501	99999999	3.00
+
+USE test;
+SELECT 
+	city_1130.cityName, 
+	city_1130.baName, 
+	dsrc.from_order_number, 
+	dsrc.to_order_number, 
+	dsrc.royalties
+FROM le_delivered_ladder_city_1130 city_1130
+LEFT JOIN i360r_oas.t_delivery_staff_royalties_config dsrc ON city_1130.baName = dsrc.business_area_name
+ORDER BY city_1130.cityName, city_1130.baName, dsrc.from_order_number;
+
+-- 兼职提成，各城市不一样：
+-- 温州	4.50
+-- 杭州	5.00
+-- 宁波	6.00
+-- 武汉	6.00
+-- 北京	6.50
+-- 天津	6.50
+-- 武汉	6.50
+-- 北京	7.50
+-- 上海	8.00
+USE test;
+SELECT 
+	city_1130.cityName, 		
+	dsrc.royalties_amount
+FROM le_delivered_ladder_city_1130 city_1130
+LEFT JOIN i360r_oas.t_delivery_staff_royalties_parttime_config dsrc ON city_1130.baName = dsrc.location_name
+group BY dsrc.royalties_amount, city_1130.cityName;
+
+-- 查询这些人，有哪些是超过500单的
+
+UPDATE i360r_oas.t_delivery_staff_monthly_performance dsmp
+INNER JOIN i360r_cds.t_delivery_staff ds ON ds.id = dsmp.delivery_staff_code
+INNER JOIN i360r_cds.t_business_area ba ON ds.business_area_id = ba.id
+INNER JOIN i360r_cds.t_employee_position ep ON ep.id = ds.employee_position_id
+INNER JOIN i360r_cds.t_employee e ON ep.employee_id = e.id
+INNER JOIN test.le_delivered_ladder_order_count_1130 order_count_1130 ON order_count_1130.dsmp_delivery_staff_code = dsmp.delivery_staff_code
+SET dsmp.delivered_ladder_order_royalties = (300 -dsmp.delivered_ladder_order_number_base) *2 + (dsmp.delivered_ladder_order_number_base + dsmp.delivered_ladder_order_number - 300)*3
+WHERE ba.name = '漕河泾' AND dsmp.statistic_date = '2016-11-01' 
+AND (dsmp.delivered_ladder_order_number_base + dsmp.delivered_ladder_order_number) > 300 AND ep.position_id NOT IN (52);
+
+
+le_delivered_ladder_order_count_1130
+
+
+
+-- 升级 t_delivery_staff_monthly_performance delivered_ladder_order_number 
+
+
+-- (1)修复上海漕河泾全职提成
+-- 大于300单 --
+UPDATE i360r_oas.t_delivery_staff_monthly_performance dsmp
+INNER JOIN i360r_cds.t_delivery_staff ds ON ds.id = dsmp.delivery_staff_code
+INNER JOIN i360r_cds.t_business_area ba ON ds.business_area_id = ba.id
+INNER JOIN i360r_cds.t_employee_position ep ON ep.id = ds.employee_position_id
+INNER JOIN i360r_cds.t_employee e ON ep.employee_id = e.id
+INNER JOIN test.le_delivered_ladder_order_count_1130 order_count_1130 ON order_count_1130.dsmp_delivery_staff_code = dsmp.delivery_staff_code
+SET dsmp.delivered_ladder_order_royalties = (300 -dsmp.delivered_ladder_order_number_base) *2 + (dsmp.delivered_ladder_order_number_base + dsmp.delivered_ladder_order_number - 300)*3
+WHERE ba.name = '漕河泾' AND dsmp.statistic_date = '2016-11-01' 
+AND (dsmp.delivered_ladder_order_number_base + dsmp.delivered_ladder_order_number) > 300 AND ep.position_id NOT IN (52);
+
+-- 小于300单
+UPDATE i360r_oas.t_delivery_staff_monthly_performance dsmp
+INNER JOIN i360r_cds.t_delivery_staff ds ON ds.id = dsmp.delivery_staff_code
+INNER JOIN i360r_cds.t_business_area ba ON ds.business_area_id = ba.id
+INNER JOIN i360r_cds.t_employee_position ep ON ep.id = ds.employee_position_id
+INNER JOIN i360r_cds.t_employee e ON ep.employee_id = e.id
+INNER JOIN test.le_delivered_ladder_order_count_1130 order_count_1130 ON order_count_1130.dsmp_delivery_staff_code = dsmp.delivery_staff_code
+SET dsmp.delivered_ladder_order_royalties = dsmp.delivered_ladder_order_number *2
+WHERE ba.city_id = '010302' AND dsmp.statistic_date = '2016-10-01' 
+AND (dsmp.delivered_ladder_order_number_base + dsmp.delivered_ladder_order_number) <= 300 AND ep.position_id NOT IN (52);
+
+
+-- (2)修复其他全职提成
+-- 大于500单
+UPDATE i360r_oas.t_delivery_staff_monthly_performance dsmp
+INNER JOIN i360r_cds.t_delivery_staff ds ON ds.id = dsmp.delivery_staff_code
+INNER JOIN i360r_cds.t_business_area ba ON ds.business_area_id = ba.id
+INNER JOIN i360r_cds.t_employee_position ep ON ep.id = ds.employee_position_id
+INNER JOIN i360r_cds.t_employee e ON ep.employee_id = e.id
+INNER JOIN test.le_delivered_ladder_order_count_1130 order_count_1130 ON order_count_1130.dsmp_delivery_staff_code = dsmp.delivery_staff_code
+SET dsmp.delivered_ladder_order_royalties = (500 -dsmp.delivered_ladder_order_number_base) *2 + (dsmp.delivered_ladder_order_number_base + dsmp.delivered_ladder_order_number - 500)*3
+WHERE ba.name = '漕河泾' AND dsmp.statistic_date = '2016-11-01' 
+AND (dsmp.delivered_ladder_order_number_base + dsmp.delivered_ladder_order_number) > 500 AND ep.position_id NOT IN (52);
+
+-- 小于500单
+UPDATE i360r_oas.t_delivery_staff_monthly_performance dsmp
+INNER JOIN i360r_cds.t_delivery_staff ds ON ds.id = dsmp.delivery_staff_code
+INNER JOIN i360r_cds.t_business_area ba ON ds.business_area_id = ba.id
+INNER JOIN i360r_cds.t_employee_position ep ON ep.id = ds.employee_position_id
+INNER JOIN i360r_cds.t_employee e ON ep.employee_id = e.id
+INNER JOIN test.le_delivered_ladder_order_count_1130 order_count_1130 ON order_count_1130.dsmp_delivery_staff_code = dsmp.delivery_staff_code
+SET dsmp.delivered_ladder_order_royalties = dsmp.delivered_ladder_order_number *2
+WHERE ba.city_id = '010302' AND dsmp.statistic_date = '2016-10-01' 
+AND (dsmp.delivered_ladder_order_number_base + dsmp.delivered_ladder_order_number) <= 500 AND ep.position_id NOT IN (52);
+
+-- (3)修复兼职提成
+UPDATE i360r_oas.t_delivery_staff_monthly_performance dsmp
+INNER JOIN i360r_cds.t_delivery_staff ds ON ds.id = dsmp.delivery_staff_code
+INNER JOIN i360r_cds.t_business_area ba ON ds.business_area_id = ba.id
+INNER JOIN i360r_cds.t_employee_position ep ON ep.id = ds.employee_position_id
+INNER JOIN i360r_cds.t_employee e ON ep.employee_id = e.id
+INNER JOIN i360r_oas.t_delivery_staff_royalties_parttime_config dsrpc ON ba.name = dsrpc.location_name
+INNER JOIN test.le_delivered_ladder_order_count_1130 order_count_1130 ON order_count_1130.dsmp_delivery_staff_code = dsmp.delivery_staff_code
+SET dsmp.delivered_ladder_order_royalties = dsmp.delivered_ladder_order_number * dsrpc.royalties_amount
+WHERE dsmp.statistic_date = '2016-11-01' 
+AND ep.position_id IN (52);
+
+
+-- (1)验证上海漕河泾全职提成
+-- 大于300单 -- 19条
+SELECT * FROM i360r_oas.t_delivery_staff_monthly_performance dsmp
+INNER JOIN i360r_cds.t_delivery_staff ds ON ds.id = dsmp.delivery_staff_code
+INNER JOIN i360r_cds.t_business_area ba ON ds.business_area_id = ba.id
+INNER JOIN i360r_cds.t_employee_position ep ON ep.id = ds.employee_position_id
+INNER JOIN i360r_cds.t_employee e ON ep.employee_id = e.id
+INNER JOIN test.le_delivered_ladder_order_count_1130 order_count_1130 ON order_count_1130.dsmp_delivery_staff_code = dsmp.delivery_staff_code
+WHERE ba.name = '漕河泾' AND dsmp.statistic_date = '2016-11-01' 
+AND (dsmp.delivered_ladder_order_number_base + dsmp.delivered_ladder_order_number) > 300 AND ep.position_id NOT IN (52);
+
+-- 小于300单 -- 3条
+SELECT * FROM i360r_oas.t_delivery_staff_monthly_performance dsmp
+INNER JOIN i360r_cds.t_delivery_staff ds ON ds.id = dsmp.delivery_staff_code
+INNER JOIN i360r_cds.t_business_area ba ON ds.business_area_id = ba.id
+INNER JOIN i360r_cds.t_employee_position ep ON ep.id = ds.employee_position_id
+INNER JOIN i360r_cds.t_employee e ON ep.employee_id = e.id
+INNER JOIN test.le_delivered_ladder_order_count_1130 order_count_1130 ON order_count_1130.dsmp_delivery_staff_code = dsmp.delivery_staff_code
+WHERE ba.name = '漕河泾' AND dsmp.statistic_date = '2016-11-01' 
+AND (dsmp.delivered_ladder_order_number_base + dsmp.delivered_ladder_order_number) <= 300 AND ep.position_id NOT IN (52);
+
+
+-- (2)修复其他全职提成
+-- 大于500单 -- 180条
+SELECT * FROM i360r_oas.t_delivery_staff_monthly_performance dsmp
+INNER JOIN i360r_cds.t_delivery_staff ds ON ds.id = dsmp.delivery_staff_code
+INNER JOIN i360r_cds.t_business_area ba ON ds.business_area_id = ba.id
+INNER JOIN i360r_cds.t_employee_position ep ON ep.id = ds.employee_position_id
+INNER JOIN i360r_cds.t_employee e ON ep.employee_id = e.id
+INNER JOIN test.le_delivered_ladder_order_count_1130 order_count_1130 ON order_count_1130.dsmp_delivery_staff_code = dsmp.delivery_staff_code
+WHERE ba.name != '漕河泾' AND dsmp.statistic_date = '2016-11-01' 
+AND (dsmp.delivered_ladder_order_number_base + dsmp.delivered_ladder_order_number) > 500 AND ep.position_id NOT IN (52);
+
+-- 小于500单 -- 35条
+SELECT * FROM i360r_oas.t_delivery_staff_monthly_performance dsmp
+INNER JOIN i360r_cds.t_delivery_staff ds ON ds.id = dsmp.delivery_staff_code
+INNER JOIN i360r_cds.t_business_area ba ON ds.business_area_id = ba.id
+INNER JOIN i360r_cds.t_employee_position ep ON ep.id = ds.employee_position_id
+INNER JOIN i360r_cds.t_employee e ON ep.employee_id = e.id
+INNER JOIN test.le_delivered_ladder_order_count_1130 order_count_1130 ON order_count_1130.dsmp_delivery_staff_code = dsmp.delivery_staff_code
+WHERE ba.name != '漕河泾' AND dsmp.statistic_date = '2016-11-01' 
+AND (dsmp.delivered_ladder_order_number_base + dsmp.delivered_ladder_order_number) <= 500 AND ep.position_id NOT IN (52);
+
+-- (3)修复兼职提成 -- 18条
+SELECT * FROM i360r_oas.t_delivery_staff_monthly_performance dsmp
+INNER JOIN i360r_cds.t_delivery_staff ds ON ds.id = dsmp.delivery_staff_code
+INNER JOIN i360r_cds.t_business_area ba ON ds.business_area_id = ba.id
+INNER JOIN i360r_cds.t_employee_position ep ON ep.id = ds.employee_position_id
+INNER JOIN i360r_cds.t_employee e ON ep.employee_id = e.id
+INNER JOIN i360r_oas.t_delivery_staff_royalties_parttime_config dsrpc ON ba.name = dsrpc.location_name
+INNER JOIN test.le_delivered_ladder_order_count_1130 order_count_1130 ON order_count_1130.dsmp_delivery_staff_code = dsmp.delivery_staff_code
+WHERE dsmp.statistic_date = '2016-11-01' 
+AND ep.position_id IN (52);
+
+
+SELECT * 
+FROM `test`.`t_november_monthly_performence` nmp
+LEFT JOIN test.le_delivered_ladder_order_count_1130 order_count_1130 ON order_count_1130.dsmp_delivery_staff_code = nmp.delivery_staff_id
+
