@@ -15,7 +15,7 @@ public class MapperTest extends AbstractPersistenceTest {
     @Autowired
     UserMapper mapper;
 
-//    @Test
+    @Test
     public void getUser() {
         User user = mapper.selectUser(1);
         System.out.println(user);

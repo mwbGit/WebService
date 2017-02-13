@@ -21,7 +21,7 @@ public interface IUserService {
     @Path("search")
     @Consumes(ContentType.APPLICATION_FORM_URLENCODED_UTF8)
     @Produces(ContentType.APPLICATION_JSON_UTF8)
-    public SearchUserResponse searchUser(@FormParam("")SearchUserRequest request) throws Exception;
+    public SearchUserResponse searchUser(@FormParam("") SearchUserRequest request) throws Exception;
 
     @POST
     @Path("create")
