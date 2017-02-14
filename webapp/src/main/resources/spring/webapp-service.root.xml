@@ -11,6 +11,10 @@
         <value>classpath:/code/ExceptionMessages</value>
     </util:list>
 
+
+    <bean id="sojumpCallBackServlet"
+          class="com.mwb.servlet.SojumpCallBackServlet" />
+
     <bean id="userService"
           class="com.mwb.service.user.UserService"/>
 

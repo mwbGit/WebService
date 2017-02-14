@@ -46,4 +46,14 @@
         <url-pattern>/service/*</url-pattern>
     </servlet-mapping>
 
+    <servlet>
+        <servlet-name>sojumpCallBackServlet</servlet-name>
+        <servlet-class>com.mwb.web.framework.http.servlet.DelegatingServletProxy</servlet-class>
+        <load-on-startup>1</load-on-startup>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>sojumpCallBackServlet</servlet-name>
+        <url-pattern>/sojump/callback</url-pattern>
+    </servlet-mapping>
+
 </web-app>
